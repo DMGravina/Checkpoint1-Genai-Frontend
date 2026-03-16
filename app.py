@@ -6,8 +6,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 import tensorflow as tf
-import plotly.express as px
-import altair as alt
 from PIL import Image
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -61,7 +59,7 @@ class VAE(tf.keras.Model):
 @st.cache_resource
 def load_model():
     if not os.path.exists(CONFIG_PATH) or not os.path.exists(WEIGHTS_PATH):
-        return None, 'Pesos ou configuração não encontrados. Treine o modelo executando train_vae.py.'
+        return None, 'Pesos ou configuracao nao encontrados. Execute train_vae.py.'
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
         config = json.load(f)
     latent_dim = int(config.get('latent_dim', 16))
@@ -92,19 +90,20 @@ def compute_reconstruction_error(x: np.ndarray, x_recon: np.ndarray) -> float:
 @st.cache_data
 def classify_pneumonia(reconstruction_error: float, threshold_normal: float, threshold_borderline: float) -> tuple:
     if reconstruction_error < threshold_normal:
-        return "NORMAL", "Baixo risco de pneumonia", "green"
+        return "NORMAL", "Baixo risco detectado", "green"
     elif reconstruction_error < threshold_borderline:
-        return "BORDERLINE", "Risco moderado - recomenda-se avaliação médica", "orange"
+        return "BORDERLINE", "Risco moderado - Revisao recomendada", "orange"
     else:
-        return "POSSÍVEL PNEUMONIA", "Alto risco - urgente avaliação médica", "red"
+        return "ALTO RISCO", "Possivel Pneumonia - Urgente", "red"
 
-def generate_new_images(vae: VAE, num_images: int = 4, temperature: float = 1.0) -> np.ndarray:
+def generate_new_images(vae: VAE, num_images: int, temp: float, seed: int) -> np.ndarray:
+    tf.random.set_seed(seed)
     latent_dim = vae.encoder.output_shape[0][-1]
-    z_samples = np.random.normal(0, temperature, (num_images, latent_dim))
+    z_samples = np.random.normal(0, temp, (num_images, latent_dim))
     generated_images = vae.decode(z_samples, training=False).numpy()
     return generated_images
 
-st.set_page_config(page_title='VAE PneumoniaMNIST - Triagem e Geração', layout='wide')
+st.set_page_config(page_title='MediVision AI - VAE', layout='wide')
 
 if "history" not in st.session_state:
     st.session_state.history = []
@@ -120,26 +119,25 @@ if "num_generated" not in st.session_state:
     st.session_state.num_generated = 4
 if "history_df" not in st.session_state:
     st.session_state.history_df = pd.DataFrame(
-        columns=["Execução", "Classificação", "Erro MSE", "Confiança (%)"]
+        columns=["Execucao", "Classificacao", "Erro MSE", "Confianca (%)"]
     )
 
 def reset_analysis():
     st.session_state.analysis_ran = False
     st.session_state.last_result = None
-    st.toast("Configuração alterada. Execute novamente.")
 
-st.sidebar.header("Modelo VAE")
+st.sidebar.title("MediVision AI")
 
 vae, err = load_model()
 if err:
     st.sidebar.error(err)
     st.stop()
 else:
-    st.sidebar.success("Modelo carregado com sucesso!")
-    st.sidebar.info(f"Dimensão latente: {vae.encoder.output_shape[0][-1]}")
+    st.sidebar.success("Motor de inferencia ativo.")
+    st.sidebar.info(f"Dimensao do espaco latente: {vae.encoder.output_shape[0][-1]}")
 
 st.sidebar.markdown("---")
-st.sidebar.header("Configurações de Triagem")
+st.sidebar.header("Parametros do Modelo")
 
 st.sidebar.slider(
     "Threshold Normal (MSE)",
@@ -157,37 +155,20 @@ st.sidebar.slider(
     on_change=reset_analysis
 )
 
-st.sidebar.checkbox(
-    "Simular latência",
-    value=True,
-    key="simulate_latency"
-)
+st.sidebar.checkbox("Simular latencia de rede", value=True, key="simulate_latency")
 
-st.sidebar.markdown("---")
-
-if st.sidebar.button("Limpar Cache"):
-    st.cache_data.clear()
-    st.sidebar.success("Cache limpo com sucesso.")
-
-st.sidebar.markdown("---")
-st.sidebar.markdown("### Sobre")
-st.sidebar.info(
-    "Triagem de pneumonia via VAE. "
-    "Sempre consulte um médico para diagnóstico definitivo."
-)
-
-st.title("VAE PneumoniaMNIST - Triagem de Pneumonia e Geração de Imagens")
+st.title("Sistema MediVision: Diagnostico Auxiliar via VAE")
 
 uploaded = st.file_uploader(
-    "Envie uma imagem de raio-X para análise (PNG/JPG)",
+    "Carregar Raio-X em formato PNG ou JPG",
     type=["png", "jpg", "jpeg"]
 )
 
 if not uploaded:
-    st.info("Envie uma imagem de raio-X para iniciar a análise.")
+    st.info("Aguardando carregamento de imagem para iniciar protocolo.")
     st.stop()
 
-if st.button("Executar Triagem"):
+if st.button("Iniciar Processamento"):
     st.session_state.analysis_ran = True
     st.session_state.run_file_key = uploaded.name + str(uploaded.size)
 
@@ -196,22 +177,23 @@ if st.session_state.analysis_ran:
 
     if st.session_state.get("last_file_key") != file_key:
         if st.session_state.simulate_latency:
-            with st.spinner("Pré-processando imagem..."):
+            with st.spinner("Extraindo tensores..."):
                 time.sleep(0.5)
-            with st.spinner("Codificando no espaço latente..."):
+            with st.spinner("Mapeando espaco latente..."):
                 time.sleep(0.5)
-            with st.spinner("Reconstruindo imagem..."):
+            with st.spinner("Calculando divergencia espacial..."):
                 bar = st.progress(0)
                 for i in range(100):
                     time.sleep(0.01)
                     bar.progress(i + 1)
-            st.toast("Análise concluída.")
         st.session_state.last_file_key = file_key
 
     image = Image.open(io.BytesIO(uploaded.read()))
     x = preprocess_image(image)
     recon = vae(x, training=False).numpy()
     mse = compute_reconstruction_error(x, recon)
+    
+    diff_map = np.abs(x - recon)
 
     classification, description, color = classify_pneumonia(
         mse,
@@ -228,10 +210,10 @@ if st.session_state.analysis_ran:
             "file_key": file_key,
         }
         new_row = pd.DataFrame([{
-            "Execução":       len(st.session_state.history) + 1,
-            "Classificação":  classification,
+            "Execucao":       len(st.session_state.history) + 1,
+            "Classificacao":  classification,
             "Erro MSE":       round(mse, 6),
-            "Confiança (%)":  confidence_percent,
+            "Confianca (%)":  confidence_percent,
         }])
         st.session_state.history_df = pd.concat(
             [st.session_state.history_df, new_row], ignore_index=True
@@ -242,33 +224,35 @@ if st.session_state.analysis_ran:
             "confidence": confidence_percent,
         })
 
-    tab_triagem, tab_geracao, tab_dados, tab_monitor, tab_sobre = st.tabs([
-        "Triagem",
-        "Geração",
-        "Dados",
-        "Monitoramento",
-        "Sobre"
+    tab_triagem, tab_geracao, tab_dados, tab_monitor = st.tabs([
+        "Diagnostico Primario",
+        "Laboratorio Generativo",
+        "Auditoria de Dados",
+        "Monitoramento do Modelo"
     ])
 
     with tab_triagem:
-        col1, col2 = st.columns(2)
+        col1, col2, col3 = st.columns(3)
         with col1:
-            st.subheader("Imagem Original")
-            st.image(x[0].squeeze(), clamp=True, width=100)
+            st.subheader("Entrada")
+            st.image(x[0].squeeze(), clamp=True, use_container_width=True)
         with col2:
-            st.subheader("Reconstrução VAE")
-            st.image(recon[0].squeeze(), clamp=True, width=100)
+            st.subheader("Reconstrucao")
+            st.image(recon[0].squeeze(), clamp=True, use_container_width=True)
+        with col3:
+            st.subheader("Mapa de Residuos")
+            st.image(diff_map[0].squeeze(), clamp=True, use_container_width=True)
 
         st.markdown("---")
-        st.subheader("Resultado da Triagem")
+        st.subheader("Resultado da Inferencia")
 
         prev_mse = st.session_state.history[-2]["mse"] if len(st.session_state.history) >= 2 else None
         delta_mse = f"{(mse - prev_mse):+.6f}" if prev_mse is not None else None
 
         m1, m2, m3 = st.columns(3)
         m1.metric("Erro MSE", f"{mse:.6f}", delta=delta_mse, delta_color="inverse")
-        m2.metric("Classificação", classification)
-        m3.metric("Confiança estimada", f"{confidence_percent}%")
+        m2.metric("Classificacao", classification)
+        m3.metric("Confianca Estimada", f"{confidence_percent}%")
 
         st.progress(confidence_percent)
 
@@ -279,58 +263,55 @@ if st.session_state.analysis_ran:
         else:
             st.error(f"{classification} - {description}")
 
-        st.caption("**Importante:** Este é apenas um auxiliar de triagem. Sempre consulte um médico para diagnóstico definitivo.")
         st.markdown("---")
-        st.subheader("Validação Humana")
+        st.subheader("Validacao Humana no Loop")
         
         fc1, fc2 = st.columns(2)
         with fc1:
-            if st.button("Classificação correta"):
+            if st.button("Validar Acerto"):
                 st.session_state.feedback_log.append(
                     {"classification": classification, "mse": mse, "correct": True}
                 )
-                st.success("Feedback registrado.")
+                st.toast("Validacao registrada no banco de sessoes.")
         with fc2:
-            if st.button("Classificação incorreta"):
+            if st.button("Apontar Falso Positivo/Negativo"):
                 st.session_state.feedback_log.append(
                     {"classification": classification, "mse": mse, "correct": False}
                 )
-                st.error("Feedback registrado.")
+                st.toast("Inconsistencia registrada para retreino.")
 
-        with tab_geracao:
-            st.subheader("Geração de Imagens Sintéticas (Espaço Latente)")
+    with tab_geracao:
+        st.subheader("Amostragem do Espaco Latente")
         
-            st.session_state.num_generated = st.slider("Quantidade de imagens a gerar", min_value=1, max_value=8, value=4)
+        g1, g2, g3 = st.columns(3)
+        st.session_state.num_generated = g1.slider("Imagens a gerar", min_value=1, max_value=8, value=4)
+        st.session_state.temperature = g2.slider("Temperatura", min_value=0.1, max_value=3.0, value=1.0, step=0.1)
+        st.session_state.seed = g3.number_input("Semente (Seed)", value=42, step=1)
         
-            st.session_state.temperature = st.slider(
-                "Temperatura da Geração (Variância)", 
-                min_value=0.1, max_value=3.0, value=1.0, step=0.1,
-                help="Valores baixos geram imagens mais conservadoras. Valores altos aumentam a diversidade, mas podem gerar ruído."
-            )
-        
-        if st.button("Gerar Imagens"):
+        if st.button("Executar Decoder"):
             st.session_state.generated_images = generate_new_images(
                 vae, 
                 st.session_state.num_generated, 
-                st.session_state.temperature
+                st.session_state.temperature, 
+                st.session_state.seed
             )
             
         if st.session_state.generated_images is not None:
             cols = st.columns(min(st.session_state.num_generated, 4))
             for i, img in enumerate(st.session_state.generated_images):
                 with cols[i % 4]:
-                    st.image(img.squeeze(), clamp=True, width=150, caption=f"Sintética {i+1} (Temp: {st.session_state.temperature})")
+                    st.image(img.squeeze(), clamp=True, use_container_width=True, caption=f"Amostra {i+1}")
 
     with tab_dados:
-        st.subheader("Histórico de Análises")
+        st.subheader("Historico de Operacoes")
         if not st.session_state.history_df.empty:
             st.dataframe(
                 st.session_state.history_df,
                 use_container_width=True,
                 hide_index=True,
                 column_config={
-                    "Confiança (%)": st.column_config.ProgressColumn(
-                        "Confiança",
+                    "Confianca (%)": st.column_config.ProgressColumn(
+                        "Confianca",
                         min_value=0,
                         max_value=100,
                         format="%d%%",
@@ -340,53 +321,43 @@ if st.session_state.analysis_ran:
             )
 
     with tab_monitor:
-        st.subheader("Monitoramento do Sistema")
+        st.subheader("Telemetria e Performance")
         total_fb = len(st.session_state.feedback_log)
         if total_fb > 0:
             correct = sum(1 for f in st.session_state.feedback_log if f["correct"])
             accuracy = correct / total_fb
 
             mon1, mon2, mon3 = st.columns(3)
-            mon1.metric("Feedbacks recebidos", total_fb)
-            mon2.metric("Acertos validados", correct)
-            mon3.metric("Acurácia percebida", f"{int(accuracy * 100)}%")
+            mon1.metric("Amostras Avaliadas", total_fb)
+            mon2.metric("Acertos Absolutos", correct)
+            mon3.metric("Acuracia Empirica", f"{int(accuracy * 100)}%")
 
             if accuracy < 0.7:
-                st.error("ALERTA: Degradação do modelo detectada. Acurácia abaixo de 70%. Necessário retreino ou revisão dos thresholds.")
+                st.error("ALERTA CRITICO: Acuracia caiu abaixo do limiar operacional de 70%. Necessaria intervencao de engenharia de dados.")
         else:
-            st.info("Ainda não há feedback suficiente para monitoramento.")
+            st.info("Aguardando acumulo de logs de validacao humana.")
 
         st.markdown("---")
         
         if len(st.session_state.history) > 1:
             col_chart1, col_chart2 = st.columns(2)
             with col_chart1:
-                st.markdown("#### Evolução do Erro MSE")
+                st.markdown("#### Curva de Residuos (MSE)")
                 mse_series = pd.DataFrame(
-                    {"Erro MSE": [h["mse"] for h in st.session_state.history]},
+                    {"MSE": [h["mse"] for h in st.session_state.history]},
                     index=range(1, len(st.session_state.history) + 1),
                 )
                 st.line_chart(mse_series)
             
             with col_chart2:
-                st.markdown("#### Evolução da Confiabilidade (%)")
+                st.markdown("#### Estabilidade de Confianca")
                 conf_series = pd.DataFrame(
-                    {"Confiança (%)": [h["confidence"] for h in st.session_state.history]},
+                    {"Confianca": [h["confidence"] for h in st.session_state.history]},
                     index=range(1, len(st.session_state.history) + 1),
                 )
                 st.line_chart(conf_series)
 
-    with tab_sobre:
-        st.header("Sobre o Modelo VAE")
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Parâmetros Encoder", f"{vae.encoder.count_params():,}")
-            st.metric("Parâmetros Decoder", f"{vae.decoder.count_params():,}")
-        with col2:
-            st.metric("Total de Parâmetros", f"{vae.count_params():,}")
-            st.metric("Dimensão Latente", vae.encoder.output_shape[0][-1])
-
 else:
-    st.info("Configure os parâmetros na barra lateral e clique em Executar Triagem.")
+    st.info("Sistema em repouso. Aguardando parametrizacao e execucao.")
 
 st.markdown("---")
