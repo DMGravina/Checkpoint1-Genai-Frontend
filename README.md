@@ -1,12 +1,12 @@
 #Checkpoint de GenAI & Front-End
 
 ##Alunos:
->Davi Gravina
+>Marcelo Maso RM:562163
 >
->Henry Browny
+>Luiz Felipe Tragl RM:565009
 >
->Marcelo Maso
+>Henry Browne RM:562089
 >
->Luis Felipe Tragl
+>Luis Filipe Chaves RM:564706
 >
->Luis Filipe
+>Davi Gravina RM:565619
