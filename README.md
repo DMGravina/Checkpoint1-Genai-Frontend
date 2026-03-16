@@ -1,6 +1,6 @@
-#Checkpoint de GenAI & Front-End
+# Checkpoint de GenAI & Front-End
 
-##Alunos:
+## Alunos:
 >Marcelo Maso RM:562163
 >
 >Luiz Felipe Tragl RM:565009
