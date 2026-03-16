@@ -98,9 +98,9 @@ def classify_pneumonia(reconstruction_error: float, threshold_normal: float, thr
     else:
         return "POSSÍVEL PNEUMONIA", "Alto risco - urgente avaliação médica", "red"
 
-def generate_new_images(vae: VAE, num_images: int = 4) -> np.ndarray:
+def generate_new_images(vae: VAE, num_images: int = 4, temperature: float = 1.0) -> np.ndarray:
     latent_dim = vae.encoder.output_shape[0][-1]
-    z_samples = np.random.normal(0, 1, (num_images, latent_dim))
+    z_samples = np.random.normal(0, temperature, (num_images, latent_dim))
     generated_images = vae.decode(z_samples, training=False).numpy()
     return generated_images
 
@@ -297,18 +297,29 @@ if st.session_state.analysis_ran:
                 )
                 st.error("Feedback registrado.")
 
-    with tab_geracao:
-        st.subheader("Geração de Imagens Sintéticas (Espaço Latente)")
-        st.session_state.num_generated = st.slider("Quantidade de imagens a gerar", min_value=1, max_value=8, value=4)
+        with tab_geracao:
+            st.subheader("Geração de Imagens Sintéticas (Espaço Latente)")
+        
+            st.session_state.num_generated = st.slider("Quantidade de imagens a gerar", min_value=1, max_value=8, value=4)
+        
+            st.session_state.temperature = st.slider(
+                "Temperatura da Geração (Variância)", 
+                min_value=0.1, max_value=3.0, value=1.0, step=0.1,
+                help="Valores baixos geram imagens mais conservadoras. Valores altos aumentam a diversidade, mas podem gerar ruído."
+            )
         
         if st.button("Gerar Imagens"):
-            st.session_state.generated_images = generate_new_images(vae, st.session_state.num_generated)
+            st.session_state.generated_images = generate_new_images(
+                vae, 
+                st.session_state.num_generated, 
+                st.session_state.temperature
+            )
             
         if st.session_state.generated_images is not None:
             cols = st.columns(min(st.session_state.num_generated, 4))
             for i, img in enumerate(st.session_state.generated_images):
                 with cols[i % 4]:
-                    st.image(img.squeeze(), clamp=True, width=150, caption=f"Sintética {i+1}")
+                    st.image(img.squeeze(), clamp=True, width=150, caption=f"Sintética {i+1} (Temp: {st.session_state.temperature})")
 
     with tab_dados:
         st.subheader("Histórico de Análises")
