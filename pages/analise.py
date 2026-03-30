@@ -109,7 +109,8 @@ def render():
             "Conteúdo",
             value=st.session_state.article_text,
             height=350,
-            disabled=True    
+            disabled=True
+        )
 
 def _save_feedback(feedback_type: str):
     st.session_state.history.append({
