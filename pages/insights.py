@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 
-from ui.charts import render_sentiment_chart
+from functions.resume import render_sentiment_chart
 
 
 def render():
