@@ -2,9 +2,7 @@ import matplotlib.pyplot as plt
 import streamlit as st
 
 def render_sentiment_chart(distribuicao: dict):
-    """
-    Cria a figura do gráfico. Usa st.pyplot aqui e retorna ele pronto.
-    """
+    
     fig, ax = plt.subplots(figsize=(8, 4))
     colors = ['#2ecc71', '#95a5a6', '#e74c3c']
     
