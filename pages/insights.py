@@ -20,7 +20,7 @@ def render():
 
     if "feedback" in df.columns:
 
-        st.subheader("👍👎 Distribuição de Feedback")
+        st.subheader("Distribuição de Feedback")
 
         feedback_counts = (
             df["feedback"]

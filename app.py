@@ -1,9 +1,9 @@
 import streamlit as st
 from state.session import init_session          
-from ui.sidebar import render_sidebar
-from pages import analise as ana
-from pages import historico as his
-from pages import insights as ins
+from functions.SideBar import render_sidebar
+import pages.analise as ana
+import pages.historico as his
+import pages.insights as ins
 
 st.set_page_config(
     page_title="Zap News",
