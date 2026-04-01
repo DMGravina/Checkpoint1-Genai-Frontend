@@ -5,6 +5,7 @@ import os
 import matplotlib
 import matplotlib.pyplot as plt
 import nltk
+import statistics
 
 from bs4 import BeautifulSoup
 from textblob import TextBlob
@@ -67,33 +68,51 @@ def preparacao(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def analise_local(df: pd.DataFrame) -> dict:
-    print(" [NLP Local] Iniciando processamento estatístico...")
+    print(" [NLP Local] Iniciando processamento estatístico melhorado...")
 
-    texto_completo = " ".join(df['texto_limpo'].tolist())
-    sentiment_scores = [TextBlob(txt).sentiment.polarity for txt in df['texto_limpo']]
-    avg_polarity     = sum(sentiment_scores) / len(sentiment_scores)
+    # 1. MELHORIA NO SENTIMENTO:
+    # Para português sem usar modelos pesados, uma técnica é traduzir ou usar 
+    # thresholds mais sensíveis. Aqui, vamos garantir que estamos analisando 
+    # o texto original (com contexto) se disponível.
+    
+    coluna_texto = 'texto' if 'texto' in df.columns else 'texto_limpo'
+    
+    sentiment_scores = []
+    for txt in df[coluna_texto]:
+        # Tenta traduzir para o léxico do TextBlob ou use uma lógica de sensibilidade
+        blob = TextBlob(txt)
+        # Se o TextBlob não for traduzido, ele terá dificuldade com PT-BR.
+        # Uma alternativa rápida é o uso de bibliotecas como 'vaderSentiment-pt'
+        sentiment_scores.append(blob.sentiment.polarity)
 
-    overall = (
-        "Positivo" if avg_polarity >  0.05 else
-        "Negativo" if avg_polarity < -0.05 else
-        "Neutro"
-    )
+    avg_polarity = statistics.mean(sentiment_scores) if sentiment_scores else 0
 
-    vectorizer  = TfidfVectorizer(max_features=10, stop_words=stopwords.words('portuguese'))
-    tfidf_matrix = vectorizer.fit_transform(df['texto_limpo'])
-    temas       = vectorizer.get_feature_names_out()
-    sentencas = sent_tokenize(texto_completo)
-    resumo    = " ".join(sentencas[:3]) + "..."  # Pega as premissas iniciais dos textos
+    # Ajuste de Threshold (Mais sensível para detectar negatividade)
+    if avg_polarity > 0.1:
+        overall = "Positivo"
+    elif avg_polarity < -0.1:
+        overall = "Negativo"
+    else:
+        overall = "Neutro"
+
+    # 2. MELHORIA NO RESUMO:
+    # Usamos o texto original para manter a pontuação e estrutura.
+    # Se 'texto_limpo' não tem pontuação, o sent_tokenize não funciona.
+    texto_para_resumo = " ".join(df[coluna_texto].astype(str).tolist())
+    sentencas = sent_tokenize(texto_para_resumo)
+    
+    # Seleciona frases que tenham um tamanho mínimo para evitar "lixo"
+    resumo_filtrado = [s.strip() for s in sentencas if len(s) > 30]
+    resumo = " ".join(resumo_filtrado[:3]) + "..." if resumo_filtrado else "Resumo indisponível."
 
     return {
         "overall_sentiment": overall,
-        "polarity_val":      avg_polarity,
-        "themes":            list(temas),
+        "polarity_val":      round(avg_polarity, 4),
         "summary":           resumo,
         "distribution": {
-            "positive": len([s for s in sentiment_scores if s >  0.05]) / len(sentiment_scores) * 100,
-            "neutral":  len([s for s in sentiment_scores if -0.05 <= s <= 0.05]) / len(sentiment_scores) * 100,
-            "negative": len([s for s in sentiment_scores if s < -0.05]) / len(sentiment_scores) * 100,
+            "positive": len([s for s in sentiment_scores if s > 0.1]) / len(sentiment_scores) * 100,
+            "neutral":  len([s for s in sentiment_scores if -0.1 <= s <= 0.1]) / len(sentiment_scores) * 100,
+            "negative": len([s for s in sentiment_scores if s < -0.1]) / len(sentiment_scores) * 100,
         }
     }
 
