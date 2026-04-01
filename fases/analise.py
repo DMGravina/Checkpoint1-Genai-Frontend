@@ -127,7 +127,6 @@ def run_analysis():
         st.warning("Insira uma URL.")
         return
 
-    # Chama o pipeline (que agora está em /pipelines)
     result = analyze_news(url=url)
 
     if result:
