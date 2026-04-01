@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import nltk
 import statistics
 
-from leia import SentimentIntensityAnalyzer
+from leiabr import SentimentIntensityAnalyzer
 from bs4 import BeautifulSoup
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
