@@ -1,5 +1,5 @@
 import streamlit as st 
-import pipeline.news
+from pipeline.news import analyze_news
 from functions.resume import render_sentiment_chart
 
 
