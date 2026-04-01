@@ -7,8 +7,8 @@ import matplotlib.pyplot as plt
 import nltk
 import statistics
 
+from leia import SentimentIntensityAnalyzer
 from bs4 import BeautifulSoup
-from textblob import TextBlob
 from nltk.corpus import stopwords
 from nltk.tokenize import sent_tokenize
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -68,40 +68,39 @@ def preparacao(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def analise_local(df: pd.DataFrame) -> dict:
-    print(" [NLP Local] Iniciando processamento estatístico melhorado...")
+    print(" [NLP Local] Iniciando processamento estatístico em PT-BR...")
 
-    # 1. MELHORIA NO SENTIMENTO:
-    # Para português sem usar modelos pesados, uma técnica é traduzir ou usar 
-    # thresholds mais sensíveis. Aqui, vamos garantir que estamos analisando 
-    # o texto original (com contexto) se disponível.
+    # 1. CORREÇÃO DA COLUNA: 
+    # Usamos o 'texto_bruto' que possui vírgulas, pontos e letras maiúsculas.
+    # Isso é vital tanto para o resumo quanto para o contexto do sentimento.
+    coluna_texto = 'texto_bruto' if 'texto_bruto' in df.columns else 'texto_limpo'
     
-    coluna_texto = 'texto' if 'texto' in df.columns else 'texto_limpo'
-    
+    # 2. CORREÇÃO DO IDIOMA:
+    # Instanciamos o analisador nativo em Português
+    analyzer = SentimentIntensityAnalyzer()
     sentiment_scores = []
+    
     for txt in df[coluna_texto]:
-        # Tenta traduzir para o léxico do TextBlob ou use uma lógica de sensibilidade
-        blob = TextBlob(txt)
-        # Se o TextBlob não for traduzido, ele terá dificuldade com PT-BR.
-        # Uma alternativa rápida é o uso de bibliotecas como 'vaderSentiment-pt'
-        sentiment_scores.append(blob.sentiment.polarity)
+        # O LeIA retorna um dicionário. O 'compound' é a pontuação final de -1 a 1.
+        score = analyzer.polarity_scores(str(txt))
+        sentiment_scores.append(score['compound'])
 
     avg_polarity = statistics.mean(sentiment_scores) if sentiment_scores else 0
 
-    # Ajuste de Threshold (Mais sensível para detectar negatividade)
-    if avg_polarity > 0.1:
+    # O threshold padrão da literatura para o VADER/LeIA é 0.05
+    if avg_polarity >= 0.05:
         overall = "Positivo"
-    elif avg_polarity < -0.1:
+    elif avg_polarity <= -0.05:
         overall = "Negativo"
     else:
         overall = "Neutro"
 
-    # 2. MELHORIA NO RESUMO:
-    # Usamos o texto original para manter a pontuação e estrutura.
-    # Se 'texto_limpo' não tem pontuação, o sent_tokenize não funciona.
+    # 3. CORREÇÃO DO RESUMO:
+    # Agora operando sobre o texto_bruto, o sent_tokenize saberá exatamente
+    # onde uma frase começa e termina por causa dos pontos finais originais.
     texto_para_resumo = " ".join(df[coluna_texto].astype(str).tolist())
     sentencas = sent_tokenize(texto_para_resumo)
     
-    # Seleciona frases que tenham um tamanho mínimo para evitar "lixo"
     resumo_filtrado = [s.strip() for s in sentencas if len(s) > 30]
     resumo = " ".join(resumo_filtrado[:3]) + "..." if resumo_filtrado else "Resumo indisponível."
 
@@ -110,9 +109,9 @@ def analise_local(df: pd.DataFrame) -> dict:
         "polarity_val":      round(avg_polarity, 4),
         "summary":           resumo,
         "distribution": {
-            "positive": len([s for s in sentiment_scores if s > 0.1]) / len(sentiment_scores) * 100,
-            "neutral":  len([s for s in sentiment_scores if -0.1 <= s <= 0.1]) / len(sentiment_scores) * 100,
-            "negative": len([s for s in sentiment_scores if s < -0.1]) / len(sentiment_scores) * 100,
+            "positive": len([s for s in sentiment_scores if s >= 0.05]) / len(sentiment_scores) * 100 if sentiment_scores else 0,
+            "neutral":  len([s for s in sentiment_scores if -0.05 < s < 0.05]) / len(sentiment_scores) * 100 if sentiment_scores else 0,
+            "negative": len([s for s in sentiment_scores if s <= -0.05]) / len(sentiment_scores) * 100 if sentiment_scores else 0,
         }
     }
 
