@@ -1,7 +1,7 @@
 import streamlit as st 
 
 def render_sidebar():
-    st.sidebar.title("⚡News")
+    st.sidebar.title("⚡Zap News")
     st.sidebar.markdown("---")
     
     st.sidebar.subheader("Páginas")
